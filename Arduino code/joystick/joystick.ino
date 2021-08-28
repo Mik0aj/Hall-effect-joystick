@@ -1,30 +1,71 @@
+const int commonPin = 2;
+const int buttonPins[] = {4,5,6,7};
+unsigned long lastFire = 0;
+int tolerance=20;
+const int axisPins[] = {A0,A1,A2,A3};
+int joystickValues[sizeof(axisPins)];
 
-int val;// saves value of hall effect sensor
-int avgVal;
-int buttonone;
-int newval;
-int minValueChange=50;
-int b1=2,b2=3,b3=4,b4=5,bsj=6;
+
 void setup() {
-  Serial.begin(9600);// opens serial port, sets data rate to 9600 bps
-  attachInterrupt(digitalPinToInterrupt(b1),buttonPressed,RISING);
-  pinMode (b2, INPUT);
-  pinMode (b3, INPUT);
-  pinMode (b4, INPUT);
-  pinMode (bsj, INPUT);
+  configureCommon(); // Setup pins for interrupt
+
+  attachInterrupt(digitalPinToInterrupt(commonPin), pressInterrupt, FALLING);
+
+  Serial.begin(9600);
 }
-void buttonPressed(){
-  if (digitalRead(b1) == HIGH) {
-  } else {
-    Serial.println("button 1 clicked");                 
-  }                
+
+void pressInterrupt() { // ISR
+  if (millis() - lastFire < 200) { // Debounce
+    return;
+  }
+  lastFire = millis();
+
+  configureDistinct(); // Setup pins for testing individual buttons
+
+  for (int i = 0; i < sizeof(buttonPins) / sizeof(int); i++) { // Test each button for press
+    if (!digitalRead(buttonPins[i])) {
+      press(i);
+    }
+  }
+
+  configureCommon(); // Return to original state
+}
+
+void configureCommon() {
+  pinMode(commonPin, INPUT_PULLUP);
+
+  for (int i = 0; i < sizeof(buttonPins) / sizeof(int); i++) {
+    pinMode(buttonPins[i], OUTPUT);
+    digitalWrite(buttonPins[i], LOW);
+  }
+}
+
+void configureDistinct() {
+  pinMode(commonPin, OUTPUT);
+  digitalWrite(commonPin, LOW);
+
+  for (int i = 0; i < sizeof(buttonPins) / sizeof(int); i++) {
+    pinMode(buttonPins[i], INPUT_PULLUP);
+  }
+}
+
+void press(int button) { // Our handler
+  Serial.println(button + 1);
 }
 
 void loop() {
-  newval=analogRead(A0);
-  if (newval>val+minValueChange||newval<val-minValueChange){
-      val = analogRead(A0);    // read the value from the sensor
-      Serial.println(val);  
+  for (int i = 0; i < sizeof(axisPins) / sizeof(int); i++) {
+    int old=joystickValues[i];
+    joystickValues[i]=analogRead(axisPins[i]);
+    int diff = abs(joystickValues[i] - old);
+    if(diff > tolerance)
+    {
+        old = joystickValues[i]; // only save if the val has changed enough to avoid slowly drifting
+        // and so on
+       Serial.print("axis on pin ");
+       Serial.print(axisPins[i]);
+       Serial.print(" ");
+       Serial.println(joystickValues[i]);
+    }     
   }
-        
 }
